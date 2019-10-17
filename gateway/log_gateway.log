@@ -1,0 +1,15 @@
+root - 2019-08-19 22:45:34,873 - INFO  - Registered signal handler for: gateway_154946507222998.
+root - 2019-08-19 22:45:34,874 - ERROR  - manager/interface not configured. Exiting.
+root - 2019-08-19 22:46:54,256 - INFO  - Registered signal handler for: gateway_154946507222998.
+root - 2019-08-19 22:46:54,257 - ERROR  - manager/interface not configured. Exiting.
+root - 2019-08-19 22:47:42,717 - INFO  - Registered signal handler for: gateway_154946507222998.
+root - 2019-08-19 22:47:42,717 - ERROR  - manager/interface not configured. Exiting.
+root - 2019-08-19 22:49:25,342 - INFO  - Registered signal handler for: gateway_154946507222998.
+root - 2019-08-19 22:49:25,342 - ERROR  - manager/interface not configured. Exiting.
+root - 2019-08-19 22:53:26,981 - INFO  - Registered signal handler for: gateway_154946507222998.
+root - 2019-08-19 22:53:26,981 - ERROR  - manager/interface not configured. Exiting.
+root - 2019-08-19 22:54:01,976 - INFO  - Registered signal handler for: gateway_154946507222998.
+root - 2019-08-19 22:54:01,976 - ERROR  - (<class 'KeyError'>, KeyError('MANAGER',), <traceback object at 0x7f5807776a08>)
+root - 2019-08-19 22:55:18,869 - INFO  - Registered signal handler for: gateway_154946507222998.
+root - 2019-08-19 22:55:18,869 - INFO  - Interface: virbr0, Manager: 127.0.0.1
+root - 2019-08-19 22:55:18,869 - ERROR  - Enter IoT subnet as argument.

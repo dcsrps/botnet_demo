@@ -1,0 +1,2 @@
+websockets==7.0
+scapy==2.4.0
