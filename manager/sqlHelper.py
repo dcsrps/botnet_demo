@@ -31,7 +31,7 @@ class sqliteDb(object):
         """
         """
         CREATE TABLE fim_output(ts TIMESTAMP DEFAULT CURRENT_TIMESTAMP, IoT text NOT NULL, External text NOT NULL,
-         Sport text NOT NULL, Dport text NOT NULL, Traffic text NOT NULL, Meaning text NOT NULL);
+         Sport text, Dport text NOT NULL, Traffic text NOT NULL, Meaning text NOT NULL);
         """
 
 

@@ -14,9 +14,9 @@ import ipaddress
 
 
 # Constants
-WITH_SUBNET = True
 MOD_PORT = 11001
-MIN_COUNT = 2
+WITH_SUBNET = True
+MIN_SUPPORT = 2
 SLEEP_DURATION = 10
 PROTO_MAP = {'6': 'TCP', '17' : 'UDP'}
 # Globals
@@ -43,14 +43,16 @@ def get_masked_ip(i_ip, i_subnet_mask=16):
     return i_ip
 
 
-
 def to_db(i_patterns, i_dir):
     global HTML, NODE_DICT, GRAPH_DATA
     for pattern in i_patterns:
+        del pattern['Sport']
         if i_dir == '1':
             
-            node_s = "{}-{}".format(pattern['External'], pattern['Sport'])
-            node_d = "{}-{}".format(pattern['IoT'], pattern['Dport'])
+            #node_s = "{}-{}".format(pattern['External'], pattern['Sport'])
+            #node_d = "{}-{}".format(pattern['IoT'], pattern['Dport'])
+            node_s = pattern['External']
+            node_d = pattern['IoT']
 
             if pattern['Traffic'].find('Low') >=0:
                 pattern['Meaning'] = 'Scan-In'
@@ -61,15 +63,19 @@ def to_db(i_patterns, i_dir):
 
         else:
 
-            node_d = "{}-{}".format(pattern['External'], pattern['Dport'])
-            node_s = "{}-{}".format(pattern['IoT'], pattern['Sport'])
+            node_d = pattern['External']
+            node_s = pattern['IoT']
+
+            #node_d = "{}-{}".format(pattern['External'], pattern['Dport'])
+            #node_s = "{}-{}".format(pattern['IoT'], pattern['Sport'])
 
             if pattern['Traffic'].find('High') >=0 and pattern['External'].find('*')<0:
                 pattern['Meaning'] = 'Malware-Upload'
+            elif pattern['IoT'] == pattern['External']:
+                pattern['Meaning'] = 'Scan-Out'
             elif pattern['Traffic'].find('Medium') >=0 and pattern['External'].find('*')<0:
-                pattern['Meaning'] = 'C&C'
-            #elif pattern['IoT'].find('*')<0 and pattern['External'].find('*')>=0 and pattern['Dport'].find('*')<0:
-            #    pattern['Meaning'] = 'Scan-Out'
+                pattern['Meaning'] = 'C&C Comm.'
+            # This is cheating as of now In classification logic, we must include support.
             else:
                 pattern['Meaning'] = 'Out N/A'
 
@@ -90,11 +96,13 @@ def to_db(i_patterns, i_dir):
             
         node_2 = "{}[{}]".format(NODE_DICT[node_d], node_d)
 
-        GRAPH_DATA += '{}-->|{}|{};'.format(node_1, pattern['Meaning'], node_2)
+        temp_node_edge = '{}-->|{}|{};'.format(node_1, pattern['Meaning'], node_2)  
+        if GRAPH_DATA.find(temp_node_edge) <0:
+            GRAPH_DATA += temp_node_edge
 
         HTML = '<!DOCTYPE html><html><head><meta charset="UTF-8"><script src="https://cdnjs.cloudflare.com/ajax/libs/mermaid/8.0.0/mermaid.min.js">\
-        </script></head><body><pre><code class="language-mermaid">graph LR;'+GRAPH_DATA+'</code></pre></body><script>\
-        var config = {startOnLoad:true,theme: "forest", flowchart:{useMaxWidth:false, htmlLabels:true}};\
+        </script></head><body><pre><code class="language-mermaid">graph TD;'+GRAPH_DATA+'</code></pre></body><script>\
+        var config = {startOnLoad:true,theme: "dark", flowchart:{useMaxWidth:true, htmlLabels:true}};\
         mermaid.initialize(config);window.mermaid.init(undefined, document.querySelectorAll(".language-mermaid"));</script></html>'
 
         logging.info(GRAPH_DATA)
@@ -174,7 +182,10 @@ def get_patterns_by_length(i_pattern):
 
 def run_FIM(i_keys : list):
     y = []
-    patterns = pyfpgrowth.find_frequent_patterns(i_keys, MIN_COUNT)
+    patterns = pyfpgrowth.find_frequent_patterns(i_keys, MIN_SUPPORT)
+
+    logging.info(patterns)
+
     if len(patterns) > 0:
         y2 = get_patterns_by_length(patterns)
         y1 = get_final_patterns(y2)
@@ -297,6 +308,8 @@ async def process_msg(msg, module):
         pass
     elif event == "EVT_GET_GRAPH":
         asyncio.ensure_future(send_gateway_event('graph', 'EVT_GET_GRAPH', HTML))
+    elif event == "EVT_GW_DEVICES":
+        logging.info("Gateway: {}, devices: {}".format(msg['sender'], payload))
     else:
         logging.error('Unknown event received.')
 
