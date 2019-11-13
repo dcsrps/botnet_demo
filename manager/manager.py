@@ -26,15 +26,15 @@ db_push_q = asyncio.Queue()
 lock = asyncio.Lock()
 NODE_DICT = {}
 CHAR_LIST = [chr(x) for x in range(ord('A'), ord('Z') + 1)] 
-GRAPH_DATA = ""
+GRAPH_DATA_SEQ = ""
+GRAPH_DATA_GRAPH = ""
+
+TEMPORAL_GRAPH = []
 
 LAST_KEY_COUNT = 0.0
 TOTAL_KEYS = 0.0
 
-HTML= ""
-
 logging.basicConfig(level=logging.INFO, filename='log_manager.log', filemode='a', format='%(name)s - %(asctime)s - %(levelname)s  - %(message)s')
-
 
 def get_masked_ip(i_ip, i_subnet_mask=16):
   try:
@@ -44,7 +44,8 @@ def get_masked_ip(i_ip, i_subnet_mask=16):
 
 
 def to_db(i_patterns, i_dir):
-    global HTML, NODE_DICT, GRAPH_DATA
+    global NODE_DICT, GRAPH_DATA_GRAPH, GRAPH_DATA_SEQ
+
     for pattern in i_patterns:
         del pattern['Sport']
         if i_dir == '1':
@@ -70,7 +71,7 @@ def to_db(i_patterns, i_dir):
             #node_s = "{}-{}".format(pattern['IoT'], pattern['Sport'])
 
             if pattern['Traffic'].find('High') >=0 and pattern['External'].find('*')<0:
-                pattern['Meaning'] = 'Malware-Upload'
+                pattern['Meaning'] = 'Malware-Download'
             elif pattern['IoT'] == pattern['External']:
                 pattern['Meaning'] = 'Scan-Out'
             elif pattern['Traffic'].find('Medium') >=0 and pattern['External'].find('*')<0:
@@ -79,6 +80,7 @@ def to_db(i_patterns, i_dir):
             else:
                 pattern['Meaning'] = 'Out N/A'
 
+        sql.update_fim_output(pattern)
 
         if not node_s in NODE_DICT.keys():
             try:
@@ -96,19 +98,18 @@ def to_db(i_patterns, i_dir):
             
         node_2 = "{}[{}]".format(NODE_DICT[node_d], node_d)
 
-        temp_node_edge = '{}-->|{}|{};'.format(node_1, pattern['Meaning'], node_2)  
-        if GRAPH_DATA.find(temp_node_edge) <0:
-            GRAPH_DATA += temp_node_edge
+        temp_node_edge_graph = '{}-->|{}|{};'.format(node_1, pattern['Meaning'], node_2) 
+        temp_node_edge_seq = '{}->>{}: {};'.format(node_s, node_d, pattern['Meaning'])  
 
-        HTML = '<!DOCTYPE html><html><head><meta charset="UTF-8"><script src="https://cdnjs.cloudflare.com/ajax/libs/mermaid/8.0.0/mermaid.min.js">\
-        </script></head><body><pre><code class="language-mermaid">graph TD;'+GRAPH_DATA+'</code></pre></body><script>\
-        var config = {startOnLoad:true,theme: "dark", flowchart:{useMaxWidth:true, htmlLabels:true}};\
-        mermaid.initialize(config);window.mermaid.init(undefined, document.querySelectorAll(".language-mermaid"));</script></html>'
+        if GRAPH_DATA_SEQ.find(temp_node_edge_seq) <0:
+            GRAPH_DATA_SEQ += temp_node_edge_seq
 
-        logging.info(GRAPH_DATA)
-        logging.info(pattern)
+        #if GRAPH_DATA_GRAPH.find(temp_node_edge_graph) <0:
+        ##    GRAPH_DATA_GRAPH += temp_node_edge_graph
 
-        sql.update_fim_output(pattern)
+        #logging.info(pattern)
+    #logging.info(GRAPH_DATA_SEQ)
+
 
 
 def get_all_entries():
@@ -184,7 +185,7 @@ def run_FIM(i_keys : list):
     y = []
     patterns = pyfpgrowth.find_frequent_patterns(i_keys, MIN_SUPPORT)
 
-    logging.info(patterns)
+    logging.debug(patterns)
 
     if len(patterns) > 0:
         y2 = get_patterns_by_length(patterns)
@@ -203,7 +204,7 @@ def get_value(i_s, i_start, i_end = ','):
 
 
 async def periodic_task():
-    global WITH_SUBNET, GRAPH_DATA
+    global WITH_SUBNET, GRAPH_DATA_GRAPH, GRAPH_DATA_SEQ, TEMPORAL_GRAPH
     while True:
         await asyncio.sleep(SLEEP_DURATION)
         y = {}
@@ -217,13 +218,17 @@ async def periodic_task():
         for col in ['IoT', 'External', 'Sport', 'Dport', 'Traffic']:
             fim_input_df[col] = fim_input_df[col].apply(lambda x: col+'_'+str(x))  
 
-        GRAPH_DATA = ""
+        #GRAPH_DATA_GRAPH = ""
+        GRAPH_DATA_SEQ = ""
+        
         for k in ['0', '1']:
             v = fim_input_df[fim_input_df['dir']==k][['IoT', 'External', 'Sport', 'Dport', 'Traffic']].values.tolist()
             if len(v) > 0:
                 y[k]=run_FIM(v)
                 if len(y[k]) > 0:
                     to_db(fill_the_patterns(y[k], ['IoT', 'External',  'Sport', 'Dport', 'Traffic']), k)
+        if len(GRAPH_DATA_SEQ)>0:
+            TEMPORAL_GRAPH.append(GRAPH_DATA_SEQ)
 
 
 def fill_the_patterns(i_itemset, i_cols):
@@ -284,7 +289,7 @@ async def update_gw_count(i_gw, i_count):
 
 # Process msg. 
 async def process_msg(msg, module):
-    global TOTAL_KEYS, LAST_KEY_COUNT
+    global TOTAL_KEYS, LAST_KEY_COUNT, GRAPH_DATA_SEQ, TEMPORAL_GRAPH
 
     msg = json.loads(msg)
 
@@ -307,9 +312,29 @@ async def process_msg(msg, module):
     elif event == "EVT_QUERY_RESPONSE":
         pass
     elif event == "EVT_GET_GRAPH":
-        asyncio.ensure_future(send_gateway_event('graph', 'EVT_GET_GRAPH', HTML))
+        resp = '<!DOCTYPE html><html><head><meta charset="UTF-8"><script src="https://cdnjs.cloudflare.com/ajax/libs/mermaid/8.0.0/mermaid.min.js">\
+        </script></head><body><pre><code class="language-mermaid">sequenceDiagram;'+GRAPH_DATA_SEQ+'</code></pre></body><script>\
+        var config = {startOnLoad:true,theme: "dark", flowchart:{useMaxWidth:true, htmlLabels:true}};\
+        mermaid.initialize(config);window.mermaid.init(undefined, document.querySelectorAll(".language-mermaid"));</script></html>'
+
+        asyncio.ensure_future(send_gateway_event('graph', 'EVT_GET_GRAPH', resp))
+    elif event == "EVT_GET_TIMED_GRAPH":
+        resp = {}
+        try:
+            resp['html_data'] = '<!DOCTYPE html><html><head><meta charset="UTF-8"><script src="https://cdnjs.cloudflare.com/ajax/libs/mermaid/8.0.0/mermaid.min.js">\
+            </script></head><body><pre><code class="language-mermaid">sequenceDiagram;'+TEMPORAL_GRAPH[int(payload["time"])]+'</code></pre></body><script>\
+            var config = {startOnLoad:true,theme: "dark", flowchart:{useMaxWidth:true, htmlLabels:true}};\
+            mermaid.initialize(config);window.mermaid.init(undefined, document.querySelectorAll(".language-mermaid"));</script></html>'
+        except:
+            resp['html_data'] = ''
+        resp['count'] = len(TEMPORAL_GRAPH)
+        asyncio.ensure_future(send_gateway_event('timed_graph', 'EVT_GET_TIMED_GRAPH', resp))
     elif event == "EVT_GW_DEVICES":
         logging.info("Gateway: {}, devices: {}".format(msg['sender'], payload))
+    elif event == "EVT_GET_TIMED_GRAPH_COUNT":
+        resp = {}
+        resp['count'] = len(TEMPORAL_GRAPH)
+        asyncio.ensure_future(send_gateway_event('timed_graph', 'EVT_GET_TIMED_GRAPH_COUNT', resp))
     else:
         logging.error('Unknown event received.')
 

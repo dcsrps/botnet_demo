@@ -35,6 +35,14 @@ class sqliteDb(object):
         """
 
 
+    def clear_fim_output(self):
+        try:
+            self._cur.execute("delete from fim_output")
+            self._con.commit()  
+        except:
+            logging.error('clear_fim_output failed.')
+            logging.error(sys.exc_info())
+
     def update_fim_output(self, i_in:dict):
         try:
 
